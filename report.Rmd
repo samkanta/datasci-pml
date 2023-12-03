@@ -1,0 +1,147 @@
+---
+title: Practical Machine Learning to predict the performance of exercise based on Persobnal Device data.
+  Report
+author: "Sam Kanta"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    fig_height: 8
+    fig_width: 8
+---
+
+## Introduction  
+The quantified self movement has made it possible to collect a large amount of data about personal activity relatively inexpensively, using devices such as Jawbone Up, Nike FuelBand, and Fitbit. Enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or simply because they are tech geeks are part of this group. People often quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, the goal was to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants - each asked to perform barbell lifts correctly and incorrectly in 5 different ways. Applying a machine learning algorithm, with techniques improving quality of model fit, we will predict the *manner* in which the 6 participants did the exercise. The following sections summarize the approach for this project.
+
+## Preparing the Data 
+Before any model develop occured, the corresponding R libraries were enabled and the source files for the data downloaded.
+
+```{r, cache = T}
+library(e1071)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+```
+
+```{r, cache = T}
+trainUrl <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainFile <- "./data/pml-training.csv"
+testFile  <- "./data/pml-testing.csv"
+if (!file.exists("./data")) {
+  dir.create("./data")
+}
+if (!file.exists(trainFile)) {
+  download.file(trainUrl, destfile=trainFile, method="curl")
+}
+if (!file.exists(testFile)) {
+  download.file(testUrl, destfile=testFile, method="curl")
+}
+```  
+### Reading the Data
+After downloading the data, the csv files were transformed into two data frames.  
+```{r, cache = T}
+trainRaw <- read.csv("./data/pml-training.csv")
+testRaw <- read.csv("./data/pml-testing.csv")
+dim(trainRaw)
+dim(testRaw)
+```
+The training data set contains 19,622 observations and 160 variables, while the testing data set contains 20 observations and 160 variables. The "classe" variable in the training set is the outcome to predict. 
+
+### Cleaning the Data
+Before creating the predictor model, the data needs to be cleaned to remove potential outliers that would otherwise reduce the accuracy of the algorithm. This was done in three parts:
+
+1. Identify complete cases
+```{r, cache = T}
+sum(complete.cases(trainRaw))
+```
+2. Remove columns that contain NA missing values.
+```{r, cache = T}
+trainRaw <- trainRaw[, colSums(is.na(trainRaw)) == 0] 
+testRaw <- testRaw[, colSums(is.na(testRaw)) == 0] 
+```  
+3. Remove columns that do not contribute to performance measurements.
+```{r, cache = T}
+classe <- trainRaw$classe
+trainRemove <- grepl("^X|timestamp|window", names(trainRaw))
+trainRaw <- trainRaw[, !trainRemove]
+trainCleaned <- trainRaw[, sapply(trainRaw, is.numeric)]
+trainCleaned$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(testRaw))
+testRaw <- testRaw[, !testRemove]
+testCleaned <- testRaw[, sapply(testRaw, is.numeric)]
+```
+The resulting training data set contains 19,622 observations and 53 variables, while the testing data set contains 20 observations and 53 variables. Note that the *classe* variable remains in the cleaned training set.
+
+### Slicing the Data
+The cleaned training set is split into a pure training data set (70%) and a validation data set (30%). The validation data set assists in conducting cross validation.  
+```{r, cache = T}
+set.seed(22519) # For reproducibile purpose
+inTrain <- createDataPartition(trainCleaned$classe, p=0.70, list=F)
+trainData <- trainCleaned[inTrain, ]
+testData <- trainCleaned[-inTrain, ]
+```
+
+## Modeling a Predictive Algoritm for the Data
+We fit a predictive model for activity recognition using a **Random Forest** algorithm because it automatically selects key variables and is robust to correlated covariates & outliers. The **5-fold cross validation** is used when applying the algorithm.  
+
+```{r, cache = T}
+controlRf <- trainControl(method="cv", 5)
+modelRf <- train(classe ~ ., data=trainData, method="rf", trControl=controlRf, ntree=250)
+modelRf
+```
+The performance of the model is estimated from the validation data set.  
+```{r, cache = T}
+
+#Predicting
+predictRf <- predict(modelRf, newdata = testData)
+#Testing accuracy
+confusionMatrix(table(predictRf, testData$classe))
+```
+The quality of model fit for the prediction can be determined by calculating the values of accuracy and the out-of-sample Root Mean Square Error (RSME). In the interests of cross-validation, the RSME was normalized to aid in interpreting how well the prediction model fitted the test data.
+
+The estimated accuracy of the model is 99.42% and the Normalized out-of-sample error (RMSE) has a relatively low value between 1 and 0 - 0.006287171. Such a value indicates a high degree of fit of the prediction model to the dataset.
+```{r, cache=TRUE}
+accuracy <- postResample(table(predictRf), table(testData$classe))
+accuracy
+
+oose <- 1 - as.numeric(confusionMatrix(table(testData$classe, predictRf))$overall[1])
+oose
+```
+### Final Data Model with the Top Twenty Predictor Variables
+
+```{r, cache=TRUE}
+modelRf$finalModel
+```
+
+```{r, cache=TRUE}
+varImp(modelRf)
+```
+
+## Conclusion
+A machine learning (ML) model predicted the manner of participant exercise, which was Classe 'A'. Accelerometer data located on participants' belt, forearm, arm, and dumbell, from an Exercise dataset, was cleaned, and split into training and test datasets. The predictive model successfully identified the Classe. RSME calculations contributed to the anticipated accuracy of the model.
+
+## Appendix: Figures - Data Visualization 
+
+### 1. Correlation Matrix Visualization  
+```{r, cache = T}
+corrPlot <- cor(trainData[, -length(names(trainData))])
+corrplot(corrPlot, method="color")
+```
+
+### 2. Decision Tree Visualization
+```{r, cache = T}
+treeModel <- rpart(classe ~ ., data=trainData, method="class")
+prp(treeModel) # fast plot
+```
+
+## Predicting for Test Data Set (for Course Project Prediction Quiz Portion)
+The prediction model was applied to the original testing data set, downloaded from the data source.
+
+```{r, cache = T}
+result <- predict(modelRf, testCleaned[, -length(names(testCleaned))])
+result
+```  
