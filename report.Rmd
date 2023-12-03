@@ -1,5 +1,5 @@
 ---
-title: Practical Machine Learning to predict the performance of exercise based on Persobnal Device data.
+title: Peer-graded Assignment - Prediction Assignment Writeup
   Report
 author: "Sam Kanta"
 date: "`r Sys.Date()`"
@@ -8,6 +8,8 @@ output:
     fig_height: 8
     fig_width: 8
 ---
+
+If you are accessing this page via GitHub, please go to https://rpubs.com/samkanta/data-sci-pml-wk4 for ease of viewing.
 
 ## Introduction  
 The quantified self movement has made it possible to collect a large amount of data about personal activity relatively inexpensively, using devices such as Jawbone Up, Nike FuelBand, and Fitbit. Enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or simply because they are tech geeks are part of this group. People often quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
